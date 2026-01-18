@@ -1,0 +1,33 @@
+.DS_Store
+.cache/
+.clangd
+.vscode/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.log
+
+# Data, training, and model artifacts
+datasets/
+train/
+train.py
+train.ipynb
+hailo/
+Project summaries/
+test.jpg
+*.npy
+*.pt
+*.onnx
+*.hef
+*.har
+
+# Build outputs
+compile_commands.json
+backend/__pycache__/
+esp32/.pio/
+esp32/.DS_Store
+*.bin
+*.elf
+*.map
+*.dSYM/

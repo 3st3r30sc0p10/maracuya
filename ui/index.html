@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Maracuya Naming/Hesitation UI</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="stage">
+      <img id="mjpeg" src="/stream.mjpg" alt="Camera stream" />
+      <canvas id="overlay"></canvas>
+      <video id="state-video" autoplay muted loop playsinline></video>
+      <div id="hud">
+        <div class="label" id="state-label">state: --</div>
+        <div class="label" id="winner-label">winner: --</div>
+        <div class="label">T: <span id="t-value">--</span></div>
+        <div class="label">M: <span id="m-value">--</span></div>
+      </div>
+    </div>
+    <script src="app.js"></script>
+  </body>
+</html>

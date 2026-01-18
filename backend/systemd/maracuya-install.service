@@ -1,0 +1,13 @@
+[Unit]
+Description=Maracuya Tri-State Classifier
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/pi/maracuya
+ExecStart=/home/pi/maracuya/backend/scripts/run_backend.sh
+Restart=on-failure
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
