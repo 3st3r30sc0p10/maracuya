@@ -12,6 +12,11 @@ const int LEDC_CHANNEL = 0;
 const int LEDC_FREQ_HZ = 5000;
 const int LEDC_RES_BITS = 12; // 0-4095
 
+// ADC / voltage divider configuration
+const int ADC_MAX = 4095;
+const float VREF = 3.3f;
+const float SERIES_RESISTOR_OHMS = 10000.0f;
+
 // Proximity sensor calibration (adjust for your sensor)
 const int PROX_MIN = 400;       // value when far
 const int PROX_MAX = 3000;      // value when close
@@ -34,6 +39,17 @@ static float clamp01(float v) {
   if (v > 1.0f)
     return 1.0f;
   return v;
+}
+
+static float adcToVoltage(int adc) {
+  return (float(adc) / float(ADC_MAX)) * VREF;
+}
+
+static float adcToResistance(int adc) {
+  if (adc <= 0 || adc >= ADC_MAX) {
+    return NAN;
+  }
+  return SERIES_RESISTOR_OHMS * (float(adc) / float(ADC_MAX - adc));
 }
 
 void setup() {
@@ -84,13 +100,19 @@ void loop() {
 
   if (now - lastSerial >= SERIAL_INTERVAL_MS) {
     lastSerial = now;
-    const float rubberV = (rubberRaw / 4095.0f) * 3.3f;
-    const float fabricV = (fabricRaw / 4095.0f) * 3.3f;
+    const float rubberV = adcToVoltage(rubberRaw);
+    const float fabricV = adcToVoltage(fabricRaw);
+    const float rubberOhms = adcToResistance(rubberRaw);
+    const float fabricOhms = adcToResistance(fabricRaw);
 
     String payload = "{";
     payload += "\"ts_ms\":" + String(now) + ",";
+    payload += "\"rubber_adc\":" + String(rubberRaw) + ",";
     payload += "\"rubber_v\":" + String(rubberV, 3) + ",";
+    payload += "\"rubber_ohms\":" + String(rubberOhms, 1) + ",";
+    payload += "\"fabric_adc\":" + String(fabricRaw) + ",";
     payload += "\"fabric_v\":" + String(fabricV, 3) + ",";
+    payload += "\"fabric_ohms\":" + String(fabricOhms, 1) + ",";
     payload += "\"prox_raw\":" + String(proxRaw) + ",";
     payload += "\"prox_norm\":" + String(proxNorm, 3);
     payload += "}";
