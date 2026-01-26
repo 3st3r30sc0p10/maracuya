@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Maracuya Kiosk
+Exec=/home/rasp-navigator/maracuya/maracuya/scripts/kiosk.sh
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true

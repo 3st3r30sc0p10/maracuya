@@ -34,6 +34,13 @@ class BackendConfig:
     # Sensor normalization
     sensor_min_v: float
     sensor_max_v: float
+    rubber_min_v: float
+    rubber_max_v: float
+    rubber_dead_zone: float
+    rubber_peak_hold_ms: float
+    rubber_peak_decay_per_sec: float
+    fabric_min_v: float
+    fabric_max_v: float
     sensor_timeout_sec: float
     rubber_alpha: float
     fabric_alpha: float
@@ -93,7 +100,7 @@ def load_config() -> BackendConfig:
         stream_fps=_env_float("STREAM_FPS", 20.0),
         ui_fps=_env_float("UI_FPS", 20.0),
         min_box_size=_env_int("MIN_BOX_SIZE", 6),
-        normalized_boxes=_env_bool("NORMALIZED", False),
+        normalized_boxes=_env_bool("NORMALIZED", True),
         name_a=os.getenv("NAME_A", "maracuya"),
         name_b=os.getenv("NAME_B", "passionfruit"),
         t_min=_env_float("T_MIN", 0.05),
@@ -101,10 +108,17 @@ def load_config() -> BackendConfig:
         hysteresis=_env_float("HYSTERESIS", 0.02),
         sensor_min_v=_env_float("SENSOR_MIN_V", 0.0),
         sensor_max_v=_env_float("SENSOR_MAX_V", 3.3),
+        rubber_min_v=_env_float("RUBBER_MIN_V", 0.006),  # Baseline when relaxed
+        rubber_max_v=_env_float("RUBBER_MAX_V", 0.018),  # Max stretched voltage (calibrated to your actual cord)
+        rubber_dead_zone=_env_float("RUBBER_DEAD_ZONE", 0.10),  # Values below 10% treated as 0 (filter baseline noise)
+        rubber_peak_hold_ms=_env_float("RUBBER_PEAK_HOLD_MS", 1200.0),  # Hold peaks briefly
+        rubber_peak_decay_per_sec=_env_float("RUBBER_PEAK_DECAY_PER_SEC", 0.6),  # Slow fall after hold
+        fabric_min_v=_env_float("FABRIC_MIN_V", 0.2),
+        fabric_max_v=_env_float("FABRIC_MAX_V", 1.0),  # Fabric sensor: 0.2-1.0V typical range
         sensor_timeout_sec=_env_float("SENSOR_TIMEOUT_SEC", 5.0),
-        rubber_alpha=_env_float("RUBBER_ALPHA", 0.20),
+        rubber_alpha=_env_float("RUBBER_ALPHA", 0.99),  # Near-instant response (minimal smoothing)
         fabric_alpha=_env_float("FABRIC_ALPHA", 0.05),
-        serial_port=os.getenv("SERIAL_PORT", "/dev/ttyACM0"),
+        serial_port=os.getenv("SERIAL_PORT", "/dev/serial0"),
         serial_baud=_env_int("SERIAL_BAUD", 115200),
         target_ratio_a=_env_float("TARGET_RATIO_A", 0.50),
         bias_limit=_env_float("BIAS_LIMIT", 0.25),
@@ -113,7 +127,7 @@ def load_config() -> BackendConfig:
         ambiguous_log_interval=_env_float("AMBIG_LOG_SEC", 0.25),
         simulate_camera=_env_bool("SIM_CAMERA", False),
         simulate_inference=_env_bool("SIM_INFERENCE", False),
-        simulate_sensors=_env_bool("SIM_SENSORS", True),
+        simulate_sensors=_env_bool("SIM_SENSORS", False),
         sensor_sine_hz=_env_float("SENSOR_SINE_HZ", 0.08),
         fabric_drift_per_sec=_env_float("FABRIC_DRIFT_PER_SEC", 1.0 / (20.0 * 60.0)),
     )

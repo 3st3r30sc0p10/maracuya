@@ -1,3 +1,6 @@
+#Activate venv
+source /home/rasp-navigator/pio-venv/bin/activate
+
 ## ESP32 subsystem
 
 This folder is a PlatformIO project for the Adafruit ESP32-S3 Feather that controls

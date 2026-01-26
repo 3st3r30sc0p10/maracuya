@@ -8,9 +8,11 @@
   </head>
   <body>
     <div id="stage">
-      <img id="mjpeg" src="/stream.mjpg" alt="Camera stream" />
+      <!-- WebGL compositor canvas (4 layers) -->
+      <canvas id="gl-canvas"></canvas>
+      <!-- 2D overlay for bounding boxes -->
       <canvas id="overlay"></canvas>
-      <video id="state-video" autoplay muted loop playsinline></video>
+      <!-- HUD -->
       <div id="hud">
         <div class="label" id="state-label">state: --</div>
         <div class="label" id="winner-label">winner: --</div>
@@ -18,6 +20,6 @@
         <div class="label">M: <span id="m-value">--</span></div>
       </div>
     </div>
-    <script src="app.js"></script>
+    <script src="app.js?v=30"></script>
   </body>
 </html>

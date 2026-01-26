@@ -1,0 +1,16 @@
+[Unit]
+Description=Maracuya Backend Server
+After=network.target
+
+[Service]
+Type=simple
+User=rasp-navigator
+WorkingDirectory=/home/rasp-navigator/maracuya/maracuya
+ExecStart=/home/rasp-navigator/hailo-env/bin/python -m backend.main
+Restart=always
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+Environment=MARACUYA_HEF=/home/rasp-navigator/models/maracuya_yolo.hef
+
+[Install]
+WantedBy=multi-user.target

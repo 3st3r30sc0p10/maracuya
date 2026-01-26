@@ -88,33 +88,122 @@ class HailoInfer:
     def _decode_output(
         self, output, width: int, height: int, normalized: bool, min_box_size: int
     ) -> DecodedOutput:
-        # Output format: list[batch] -> list[classes] -> ndarray (N,5)
+        # Handle various output formats from Hailo YOLO models
         scores = {"A": 0.0, "B": 0.0}
         boxes = {"A": [0, 0, 0, 0], "B": [0, 0, 0, 0]}
         has_a = False
         has_b = False
-        if not output or not output[0]:
+
+        if output is None:
             return DecodedOutput(scores_raw=scores, boxes=boxes, has_a=False, has_b=False)
-        classes = output[0]
-        for idx, class_arr in enumerate(classes):
-            if class_arr is None or len(class_arr) == 0:
-                continue
-            best_row = class_arr[np.argmax(class_arr[:, 4])]
-            x1, y1, x2, y2, score = [float(v) for v in best_row]
-            if normalized:
-                x1 *= width
-                x2 *= width
-                y1 *= height
-                y2 *= height
-            valid = abs(x2 - x1) >= min_box_size and abs(y2 - y1) >= min_box_size
-            if idx == 0:
-                scores["A"] = score
-                has_a = True
-                boxes["A"] = [x1, y1, x2, y2] if valid else [0, 0, 0, 0]
-            else:
-                scores["B"] = score
-                has_b = True
-                boxes["B"] = [x1, y1, x2, y2] if valid else [0, 0, 0, 0]
+
+        # Debug: log output structure once
+        if not hasattr(self, "_output_logged"):
+            self._output_logged = True
+            print(f"[hailo] output type={type(output).__name__}", flush=True)
+            if isinstance(output, np.ndarray):
+                print(f"[hailo] output shape={output.shape} dtype={output.dtype}", flush=True)
+            elif isinstance(output, (list, tuple)):
+                print(f"[hailo] output len={len(output)}", flush=True)
+                for i, item in enumerate(output[:3]):
+                    if isinstance(item, np.ndarray):
+                        print(f"[hailo] output[{i}] shape={item.shape}", flush=True)
+                    elif isinstance(item, (list, tuple)):
+                        print(f"[hailo] output[{i}] type=list len={len(item)}", flush=True)
+                        for j, sub in enumerate(item[:3]):
+                            if isinstance(sub, np.ndarray):
+                                print(f"[hailo] output[{i}][{j}] shape={sub.shape} dtype={sub.dtype}", flush=True)
+                            else:
+                                print(f"[hailo] output[{i}][{j}] type={type(sub).__name__}", flush=True)
+                    else:
+                        print(f"[hailo] output[{i}] type={type(item).__name__}", flush=True)
+
+        # Handle ndarray with shape (num_classes, 5, max_detections) or (batch, num_classes, 5, max_detections)
+        if isinstance(output, np.ndarray):
+            arr = output
+            # Remove batch dimension if present
+            if arr.ndim == 4 and arr.shape[0] == 1:
+                arr = arr[0]
+            # Expected shape: (num_classes, 5, max_detections)
+            if arr.ndim == 3 and arr.shape[1] == 5:
+                num_classes = arr.shape[0]
+                for cls_idx in range(min(num_classes, 2)):
+                    class_data = arr[cls_idx]  # shape: (5, max_detections)
+                    # Transpose to (max_detections, 5) for easier processing
+                    class_data = class_data.T  # shape: (max_detections, 5)
+                    # Filter out invalid detections (score > 0)
+                    valid_mask = class_data[:, 4] > 0.01
+                    valid_dets = class_data[valid_mask]
+                    if len(valid_dets) > 0:
+                        # Get best detection by score
+                        best_idx = np.argmax(valid_dets[:, 4])
+                        # Hailo NMS outputs: y1, x1, y2, x2, score (TensorFlow convention)
+                        y1, x1, y2, x2, score = [float(v) for v in valid_dets[best_idx]]
+                        # Debug: log raw box once
+                        if not hasattr(self, "_raw_box_logged"):
+                            self._raw_box_logged = True
+                            print(f"[hailo] raw coords class={cls_idx}: y1={y1:.4f} x1={x1:.4f} y2={y2:.4f} x2={x2:.4f} score={score:.4f}", flush=True)
+                        if normalized:
+                            x1 *= width
+                            x2 *= width
+                            y1 *= height
+                            y2 *= height
+                        # Debug: log scaled box once
+                        if not hasattr(self, "_scaled_box_logged"):
+                            self._scaled_box_logged = True
+                            print(f"[hailo] scaled coords class={cls_idx}: x1={x1:.1f} y1={y1:.1f} x2={x2:.1f} y2={y2:.1f} (frame={width}x{height})", flush=True)
+                        valid = abs(x2 - x1) >= min_box_size and abs(y2 - y1) >= min_box_size
+                        key = "A" if cls_idx == 0 else "B"
+                        scores[key] = score
+                        if cls_idx == 0:
+                            has_a = True
+                        else:
+                            has_b = True
+                        boxes[key] = [x1, y1, x2, y2] if valid else [0, 0, 0, 0]
+                return DecodedOutput(scores_raw=scores, boxes=boxes, has_a=has_a, has_b=has_b)
+
+        # Fallback: Original list-based format
+        if isinstance(output, (list, tuple)) and len(output) > 0:
+            classes = output[0] if isinstance(output[0], (list, tuple, np.ndarray)) else output
+            for idx, class_arr in enumerate(classes):
+                if idx >= 2:
+                    break
+                if class_arr is None:
+                    continue
+                if isinstance(class_arr, np.ndarray) and class_arr.ndim >= 1 and len(class_arr) > 0:
+                    if class_arr.ndim == 1:
+                        class_arr = class_arr.reshape(1, -1)
+                    if class_arr.shape[1] >= 5:
+                        best_row = class_arr[np.argmax(class_arr[:, 4])]
+                        # Hailo NMS outputs: y1, x1, y2, x2, score (TensorFlow convention)
+                        y1, x1, y2, x2, score = [float(v) for v in best_row[:5]]
+                        # Debug: log raw box once
+                        if not hasattr(self, "_box_logged"):
+                            self._box_logged = True
+                            print(f"[hailo] raw box class={idx}: y1={y1:.4f} x1={x1:.4f} y2={y2:.4f} x2={x2:.4f} score={score:.4f}", flush=True)
+                            print(f"[hailo] normalized={normalized} min_box_size={min_box_size} width={width} height={height}", flush=True)
+                        if normalized:
+                            x1 *= width
+                            x2 *= width
+                            y1 *= height
+                            y2 *= height
+                        box_w = abs(x2 - x1)
+                        box_h = abs(y2 - y1)
+                        valid = box_w >= min_box_size and box_h >= min_box_size
+                        key = "A" if idx == 0 else "B"
+                        scores[key] = score
+                        if idx == 0:
+                            has_a = True
+                        else:
+                            has_b = True
+                        boxes[key] = [x1, y1, x2, y2] if valid else [0, 0, 0, 0]
+
+        # Log decoded result once
+        if not hasattr(self, "_decode_logged"):
+            self._decode_logged = True
+            print(f"[hailo] decoded: has_a={has_a} has_b={has_b}", flush=True)
+            print(f"[hailo] boxes: A={boxes['A']} B={boxes['B']}", flush=True)
+
         return DecodedOutput(scores_raw=scores, boxes=boxes, has_a=has_a, has_b=has_b)
 
     def _simulate_output(
