@@ -75,10 +75,9 @@ const state = {
 // ============ DOM Elements ============
 const canvas = document.getElementById("gl-canvas");
 const gl = canvas.getContext("webgl2") || canvas.getContext("webgl");
-const hudState = document.getElementById("state-label");
-const hudWinner = document.getElementById("winner-label");
-const hudT = document.getElementById("t-value");
-const hudM = document.getElementById("m-value");
+const hudSquarePassion = document.getElementById("hud-square-passion");
+const hudSquareMaracuya = document.getElementById("hud-square-maracuya");
+const hudSquareAmbiguous = document.getElementById("hud-square-ambiguous");
 
 // ============ WebGL Resources ============
 let program = null;
@@ -871,37 +870,37 @@ function detectPulses() {
                        Math.abs(state.conf_mara - state.prev_conf_mara);
     const strength = Math.min(1, confChange * 2 + 0.3);
     
-    // Duration: longer if more latency
-    const duration = 400 + latencyMs * 0.3;
+    // Duration: slower expansion (longer duration)
+    const duration = 1800 + latencyMs * 0.4;
+    const thickness = 1 + Math.random() * 2.5; // Varied border thickness
     
     state.pulses.push({
       t0: now,
       strength: strength,
       duration: duration,
-      latencyMs: latencyMs
+      latencyMs: latencyMs,
+      thickness: thickness
     });
     
-    // Keep only last 4 pulses
-    if (state.pulses.length > 4) {
+    if (state.pulses.length > 10) {
       state.pulses.shift();
     }
   }
   
-  // Also detect significant confidence shifts (not just flips)
   const confShift = Math.abs(state.conf_pass - state.prev_conf_pass) + 
                     Math.abs(state.conf_mara - state.prev_conf_mara);
   if (confShift > 0.15 && state.rubber_k > 0.1) {
-    // Minor pulse for significant confidence movement
     const timeSinceRubberChange = now - state.lastRubberChangeTime;
-    if (timeSinceRubberChange < 1500) { // Only if rubber moved recently
+    if (timeSinceRubberChange < 1500) {
       state.pulses.push({
         t0: now,
         strength: confShift * 0.5,
-        duration: 300,
-        latencyMs: timeSinceRubberChange
+        duration: 1200,
+        latencyMs: timeSinceRubberChange,
+        thickness: 0.8 + Math.random() * 1.8
       });
       
-      if (state.pulses.length > 4) {
+      if (state.pulses.length > 10) {
         state.pulses.shift();
       }
     }
@@ -918,196 +917,149 @@ function cleanupPulses() {
   state.pulses = state.pulses.filter(p => (now - p.t0) < p.duration);
 }
 
-// Draw the epistemic feedback panel (bottom-right)
+// Draw the epistemic feedback panel (bottom-right, on overlay canvas; no map background)
 function drawEpistemicPanel() {
   const w = overlayCanvas.width;
   const h = overlayCanvas.height;
   const now = performance.now();
-  
-  // Get the visible window size vs canvas size ratio
   const displayW = parseFloat(overlayCanvas.style.width) || w;
   const displayH = parseFloat(overlayCanvas.style.height) || h;
   const scaleX = w / displayW;
   const scaleY = h / displayH;
-  
-  // Debug: log once
-  if (state.frameCount % 300 === 1) {
-    console.log("[panel] canvas:", w, h, "display:", displayW, displayH, "scale:", scaleX.toFixed(2), scaleY.toFixed(2));
-  }
-  
-  // Skip if canvas not ready
-  if (w <= 0 || h <= 0) {
-    console.warn("[panel] canvas not ready:", w, h);
-    return;
-  }
-  
-  // Panel positioning (bottom-right of VISIBLE area)
-  // Account for canvas offset if it's positioned off-screen
+  if (w <= 0 || h <= 0) return;
   const offsetX = parseFloat(overlayCanvas.style.left) || 0;
   const offsetY = parseFloat(overlayCanvas.style.top) || 0;
-  
-  // Calculate visible area in canvas coordinates
   const visibleRight = Math.min(w, (window.innerWidth - offsetX) * scaleX);
   const visibleBottom = Math.min(h, (window.innerHeight - offsetY) * scaleY);
-  
-  const panelRight = visibleRight - 30 * scaleX;
-  const panelBottom = visibleBottom - 40 * scaleY;
-  
-  // ===== PANEL BACKGROUND =====
-  const panelWidth = 280;
-  const panelHeight = 80;
-  const panelX = panelRight - panelWidth;
-  const panelY = panelBottom - panelHeight;
-  
-  // Semi-transparent background with border
-  ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-  ctx.fillRect(panelX - 10, panelY - 10, panelWidth + 20, panelHeight + 30);
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
-  ctx.lineWidth = 1;
-  ctx.strokeRect(panelX - 10, panelY - 10, panelWidth + 20, panelHeight + 30);
-  
-  // ===== 1) THRESHOLD TENSION BAR =====
-  const barWidth = 220;
+  const padding = 20;
+  const panelWidth = 360;
+  const panelHeight = 170;
+  const panelX = visibleRight - panelWidth - 24 * scaleX;
+  const panelY = visibleBottom - panelHeight - 24 * scaleY;
+  const leftZoneWidth = 72;
+  const ringCenterX = panelX + leftZoneWidth / 2;
+  const ringCenterY = panelY + panelHeight / 2;
+  const baseRadius = 16;
+  const maxPulseRadius = Math.hypot(panelWidth - leftZoneWidth, panelHeight / 2) + baseRadius;
+  const contentLeft = panelX + leftZoneWidth;
+  const contentWidth = panelWidth - leftZoneWidth - padding;
   const barHeight = 12;
-  const barX = panelRight - barWidth;
-  const barY = panelBottom - barHeight;
-  
-  // Background track (more visible)
-  ctx.fillStyle = "rgba(60, 60, 60, 0.9)";
-  ctx.fillRect(barX, barY, barWidth, barHeight);
-  
-  // Fill: rubber_influence (lagged value - what system has "accepted")
-  const fillWidth = state.rubber_influence * barWidth;
-  
-  // Yellow gradient: dim -> intense based on influence
-  const kInfluence = Math.max(0, Math.min(1, state.rubber_influence));
-  const yellowG = Math.round(160 + 70 * kInfluence);
-  const yellowB = Math.round(40 + 80 * kInfluence);
-  const yellowA = 0.35 + 0.65 * kInfluence;
-  const barColor = `rgba(255, ${yellowG}, ${yellowB}, ${yellowA})`;
-  ctx.fillStyle = barColor;
-  ctx.fillRect(barX, barY, fillWidth, barHeight);
-  
-  // Stretch waves: show yellow oscillation when cord is active
-  const kNow = Math.max(0, Math.min(1, state.rubber_k));
-  if (kNow > 0.02) {
-    const t = now * 0.001;
-    const waveAmp = 2 + 4 * kNow;
-    ctx.beginPath();
-    for (let x = 0; x <= barWidth; x += 6) {
-      const wx = barX + x;
-      const wy = barY - 10 + Math.sin(t * 4 + x * 0.05) * waveAmp;
-      if (x === 0) {
-        ctx.moveTo(wx, wy);
-      } else {
-        ctx.lineTo(wx, wy);
-      }
-    }
-    ctx.strokeStyle = `rgba(255, ${Math.round(180 + 60 * kNow)}, ${Math.round(60 + 80 * kNow)}, ${0.2 + 0.6 * kNow})`;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-  }
-  
-  // Ghost marker: rubber_smooth (current input - where visitor is NOW)
-  const ghostX = barX + state.rubber_smooth * barWidth;
-  ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-  ctx.fillRect(ghostX - 1, barY - 2, 2, barHeight + 4);
-  
-  // Influence strength indicator (subtle glow/thickness when high)
-  if (state.influence_strength > 0.3) {
-    const glowAlpha = (state.influence_strength - 0.3) * 0.8;
-    ctx.fillStyle = `rgba(255, 255, 255, ${glowAlpha * 0.3})`;
-    ctx.fillRect(barX, barY - 2, fillWidth, barHeight + 4);
-  }
-  
-  // Label
-  ctx.font = "11px monospace";
-  ctx.fillStyle = "rgba(200, 200, 200, 0.9)";
-  ctx.textAlign = "right";
-  ctx.fillText("THRESHOLD PRESSURE", panelRight, barY - 8);
-  
-  // Show current rubber value as text
-  ctx.font = "10px monospace";
-  ctx.fillStyle = `rgba(255, ${Math.round(180 + 60 * kNow)}, ${Math.round(60 + 80 * kNow)}, 0.9)`;
-  ctx.fillText(`${(state.rubber_k * 100).toFixed(0)}%`, panelRight, barY + barHeight + 14);
-  
-  // ===== 2) LATENCY PULSE RING =====
-  const ringCenterX = barX - 40;
-  const ringCenterY = barY + barHeight / 2;
-  const baseRadius = 18;
-  
-  // Draw each active pulse
-  state.pulses.forEach(pulse => {
+  const verticalGap = 14;
+  const barToPercentGap = 26;
+  const titleY = panelY + padding + 18;
+  const waveY = titleY + verticalGap + 10;
+  const waveHeight = 22;
+  const barY = waveY + waveHeight + verticalGap;
+  const percentY = barY + barHeight + barToPercentGap;
+  const barWidth = contentWidth;
+  const barX = contentLeft;
+  const yieldLabelOffset = 28;
+
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.12)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(panelX, panelY, panelWidth, panelHeight);
+  ctx.clip();
+  state.pulses.forEach((pulse, idx) => {
     const elapsed = now - pulse.t0;
     const progress = Math.min(1, elapsed / pulse.duration);
-    
-    // Easing: fast start, slow end
-    const eased = 1 - Math.pow(1 - progress, 2);
-    
-    // Ring expands as pulse progresses
-    const radius = baseRadius + eased * 15 * (1 + pulse.latencyMs / 2000);
-    
-    // Opacity fades out
-    const opacity = (1 - eased) * pulse.strength * 0.8;
-    
-    // Ring thickness decreases
-    const thickness = 2 + (1 - eased) * 2;
-    
-    // Color based on mode
+    const eased = 1 - Math.pow(1 - progress, 0.65);
+    const radius = baseRadius + eased * (maxPulseRadius - baseRadius);
+    const opacity = (1 - eased) * pulse.strength * 0.5;
+    const baseThickness = pulse.thickness != null ? pulse.thickness : (1.2 + (idx % 3) * 0.8);
+    const thickness = baseThickness + (1 - eased) * 1.5;
     let ringColor;
-    if (state.mode === "passion") {
-      ringColor = `rgba(255, 215, 0, ${opacity})`;
-    } else if (state.mode === "maracuya") {
-      ringColor = `rgba(139, 195, 74, ${opacity})`;
-    } else {
-      ringColor = `rgba(200, 200, 200, ${opacity})`;
-    }
-    
+    if (state.mode === "passion") ringColor = `rgba(255, 215, 0, ${opacity})`;
+    else if (state.mode === "maracuya") ringColor = `rgba(139, 195, 74, ${opacity})`;
+    else ringColor = `rgba(150, 150, 150, ${opacity})`;
     ctx.beginPath();
     ctx.arc(ringCenterX, ringCenterY, radius, 0, Math.PI * 2);
     ctx.strokeStyle = ringColor;
     ctx.lineWidth = thickness;
     ctx.stroke();
   });
-  
-  // Static center dot (shows pulse origin point)
-  ctx.beginPath();
-  ctx.arc(ringCenterX, ringCenterY, 4, 0, Math.PI * 2);
-  ctx.fillStyle = `rgba(255, 255, 255, ${0.4 + state.rubber_k * 0.5})`;
-  ctx.fill();
-  
-  // Static ring outline (always visible)
+  ctx.restore();
+
+  ctx.font = "18px \"Helvetica Neue\", Arial, sans-serif";
+  ctx.fillStyle = "#b8860b";
+  ctx.textAlign = "center";
+  ctx.fillText("Threshold Navigator", panelX + panelWidth / 2, titleY);
+
+  const kNow = Math.max(0, Math.min(1, state.rubber_k));
+  if (kNow > 0.02) {
+    const time = now * 0.001;
+    const waveAmp = 5 + 8 * kNow;
+    ctx.beginPath();
+    for (let x = 0; x <= barWidth; x += 5) {
+      const wx = barX + x;
+      const wy = waveY + waveHeight / 2 + Math.sin(time * 4 + x * 0.05) * waveAmp;
+      if (x === 0) ctx.moveTo(wx, wy);
+      else ctx.lineTo(wx, wy);
+    }
+    ctx.strokeStyle = `rgba(255, ${Math.round(180 + 60 * kNow)}, ${Math.round(60 + 80 * kNow)}, ${0.25 + 0.5 * kNow})`;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = "rgba(60, 60, 60, 0.9)";
+  ctx.fillRect(barX, barY, barWidth, barHeight);
+  const fillWidth = state.rubber_influence * barWidth;
+  const kInfluence = Math.max(0, Math.min(1, state.rubber_influence));
+  ctx.fillStyle = `rgba(255, ${Math.round(160 + 70 * kInfluence)}, ${Math.round(40 + 80 * kInfluence)}, ${0.35 + 0.65 * kInfluence})`;
+  ctx.fillRect(barX, barY, fillWidth, barHeight);
+  const ghostX = barX + state.rubber_smooth * barWidth;
+  ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+  ctx.fillRect(ghostX - 1, barY - 2, 2, barHeight + 4);
+  if (state.influence_strength > 0.3) {
+    const glowAlpha = (state.influence_strength - 0.3) * 0.8;
+    ctx.fillStyle = `rgba(255, 200, 60, ${glowAlpha * 0.25})`;
+    ctx.fillRect(barX, barY - 2, fillWidth, barHeight + 4);
+  }
+
+  ctx.font = "18px \"Helvetica Neue\", Arial, sans-serif";
+  ctx.fillStyle = "#b8860b";
+  ctx.textAlign = "center";
+  ctx.fillText(`${(state.rubber_k * 100).toFixed(0)}%`, panelX + panelWidth / 2, percentY);
+
   ctx.beginPath();
   ctx.arc(ringCenterX, ringCenterY, baseRadius, 0, Math.PI * 2);
-  ctx.strokeStyle = "rgba(100, 100, 100, 0.5)";
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.25)";
   ctx.lineWidth = 1;
   ctx.stroke();
-  
-  // Label for pulse ring
-  ctx.font = "8px monospace";
-  ctx.fillStyle = "rgba(120, 120, 120, 0.7)";
-  ctx.textAlign = "center";
-  ctx.fillText("YIELD", ringCenterX, ringCenterY + baseRadius + 12);
-  
-  // Reset text align
+  ctx.beginPath();
+  ctx.arc(ringCenterX, ringCenterY, 4, 0, Math.PI * 2);
+  ctx.fillStyle = `rgba(0, 0, 0, ${0.2 + state.rubber_k * 0.4})`;
+  ctx.fill();
+  ctx.font = "18px \"Helvetica Neue\", Arial, sans-serif";
+  ctx.fillStyle = "#666";
+  ctx.fillText("YIELD", ringCenterX, ringCenterY + baseRadius + yieldLabelOffset);
   ctx.textAlign = "left";
 }
 
 // ============ HUD Update ============
 function updateHUD(data) {
-  if (hudState) hudState.textContent = `state: ${(data.state || "--").toLowerCase()}`;
-  if (hudWinner) {
-    if (data.state === "DECIDED" && data.winner) {
-      const name = data.winner === "A" ? "maracuyá" : "passion fruit";
-      hudWinner.textContent = `winner: ${name}`;
-    } else if (data.state === "AMBIGUOUS") {
-      hudWinner.textContent = "winner: contested";
-    } else {
-      hudWinner.textContent = "winner: --";
-    }
+  const state = data.state || "";
+  const winner = data.winner;
+  const fillPassion = state === "DECIDED" && winner === "B";
+  const fillMaracuya = state === "DECIDED" && winner === "A";
+  const fillAmbiguous = state === "AMBIGUOUS";
+  if (hudSquarePassion) {
+    if (fillPassion) hudSquarePassion.classList.add("filled");
+    else hudSquarePassion.classList.remove("filled");
   }
-  if (hudT) hudT.textContent = (data.T || 0).toFixed(3);
-  if (hudM) hudM.textContent = (data.M || 0).toFixed(3);
+  if (hudSquareMaracuya) {
+    if (fillMaracuya) hudSquareMaracuya.classList.add("filled");
+    else hudSquareMaracuya.classList.remove("filled");
+  }
+  if (hudSquareAmbiguous) {
+    if (fillAmbiguous) hudSquareAmbiguous.classList.add("filled");
+    else hudSquareAmbiguous.classList.remove("filled");
+  }
 }
 
 // ============ Keyboard Handler ============

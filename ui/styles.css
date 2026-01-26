@@ -35,21 +35,60 @@ body {
   z-index: 10;
   bottom: 24px;
   left: 24px;
-  background: rgba(0, 0, 0, 0.55);
-  padding: 12px 16px;
+  background: #fff;
+  padding: 14px 20px;
   border-radius: 8px;
-  font-size: 14px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  backdrop-filter: blur(4px);
+  font-size: 18px;
+  display: flex;
+  flex-direction: row;
+  gap: 28px;
+  align-items: center;
 }
 
-#hud .label {
-  margin-bottom: 6px;
+#hud .hud-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
 }
 
-#hud .label:last-child {
-  margin-bottom: 0;
+#hud .hud-label {
+  letter-spacing: 0.02em;
+}
+
+#hud .hud-row[data-category="passion"] .hud-label { color: #000; }
+#hud .hud-row[data-category="maracuya"] .hud-label { color: #b8860b; }
+#hud .hud-row[data-category="ambiguous"] .hud-label { color: #666; }
+
+#hud .hud-square {
+  width: 22px;
+  height: 22px;
+  border: 3px solid;
+  border-radius: 3px;
+  box-sizing: border-box;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+
+#hud .hud-row[data-category="passion"] .hud-square {
+  border-color: #000;
+}
+#hud .hud-row[data-category="passion"] .hud-square.filled {
+  background: #000;
+}
+
+#hud .hud-row[data-category="maracuya"] .hud-square {
+  border-color: #b8860b;
+}
+#hud .hud-row[data-category="maracuya"] .hud-square.filled {
+  background: #b8860b;
+}
+
+#hud .hud-row[data-category="ambiguous"] .hud-square {
+  border-color: #666;
+}
+#hud .hud-row[data-category="ambiguous"] .hud-square.filled {
+  background: #666;
 }
 
 /* State-based body classes for additional styling hooks */

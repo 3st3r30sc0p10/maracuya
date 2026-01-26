@@ -12,14 +12,22 @@
       <canvas id="gl-canvas"></canvas>
       <!-- 2D overlay for bounding boxes -->
       <canvas id="overlay"></canvas>
-      <!-- HUD -->
+      <!-- HUD: category list with filled square indicator -->
       <div id="hud">
-        <div class="label" id="state-label">state: --</div>
-        <div class="label" id="winner-label">winner: --</div>
-        <div class="label">T: <span id="t-value">--</span></div>
-        <div class="label">M: <span id="m-value">--</span></div>
+        <div class="hud-row" data-category="passion">
+          <span class="hud-label">Passion Fruit</span>
+          <span class="hud-square" id="hud-square-passion" aria-label="Passion Fruit indicator"></span>
+        </div>
+        <div class="hud-row" data-category="maracuya">
+          <span class="hud-label">Maracuyá</span>
+          <span class="hud-square" id="hud-square-maracuya" aria-label="Maracuyá indicator"></span>
+        </div>
+        <div class="hud-row" data-category="ambiguous">
+          <span class="hud-label">Ambiguous</span>
+          <span class="hud-square" id="hud-square-ambiguous" aria-label="Ambiguous indicator"></span>
+        </div>
       </div>
     </div>
-    <script src="app.js?v=30"></script>
+    <script src="app.js?v=37"></script>
   </body>
 </html>
